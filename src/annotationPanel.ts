@@ -51,12 +51,17 @@ export class AnnotationPanel {
     this.panel.webview.postMessage({ command: 'scrollToAndEdit', id });
   }
 
-  private async handleMessage(msg: { command: string; id?: string; note?: string; filePath?: string; line?: number; expanded?: boolean }): Promise<void> {
+  private async handleMessage(msg: { command: string; id?: string; note?: string; filePath?: string; line?: number; expanded?: boolean; supplementaryInfo?: string }): Promise<void> {
     switch (msg.command) {
       case 'updateNote':
         if (msg.id && msg.note !== undefined) {
           this.store.update(msg.id, msg.note);
           this.commentCtrl.updateThreadNote(msg.id, msg.note);
+        }
+        break;
+      case 'updateSupplementaryInfo':
+        if (msg.supplementaryInfo !== undefined) {
+          this.store.updateSupplementaryInfo(msg.supplementaryInfo, true);
         }
         break;
       case 'deleteAnnotation':
@@ -106,11 +111,11 @@ export class AnnotationPanel {
   refresh(): void {
     this.panel.webview.postMessage({ command: 'beforeRefresh' });
     setTimeout(() => {
-      this.panel.webview.html = this.buildHtml(this.store.getAll());
+      this.panel.webview.html = this.buildHtml(this.store.getAll(), this.store.getSupplementaryInfo());
     }, 10);
   }
 
-  private buildHtml(annotations: Annotation[]): string {
+  private buildHtml(annotations: Annotation[], supplementaryInfo: string): string {
     const grouped = new Map<string, Annotation[]>();
     for (const a of annotations) {
       if (!grouped.has(a.filePath)) grouped.set(a.filePath, []);
@@ -497,6 +502,66 @@ export class AnnotationPanel {
       font-size: 10px;
       color: var(--vscode-descriptionForeground);
     }
+
+    .supplementary-section {
+      position: sticky;
+      bottom: 0;
+      background: var(--vscode-sideBar-background);
+      border-top: 2px solid var(--vscode-panel-border);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .supplementary-resize-handle {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      cursor: ns-resize;
+      background: transparent;
+      z-index: 10;
+    }
+
+    .supplementary-resize-handle:hover {
+      background: var(--vscode-focusBorder);
+    }
+
+    .supplementary-resize-handle:active {
+      background: var(--vscode-focusBorder);
+    }
+
+    .supplementary-header {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--vscode-sideBarTitle-foreground);
+      margin-bottom: 8px;
+    }
+
+    .supplementary-input {
+      width: 100%;
+      flex: 1;
+      min-height: 80px;
+      padding: 8px;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 3px;
+      font-family: var(--vscode-editor-font-family);
+      font-size: 12px;
+      resize: none;
+    }
+
+    .supplementary-input:focus {
+      outline: 1px solid var(--vscode-focusBorder);
+    }
+
+    .supplementary-input::placeholder {
+      color: var(--vscode-input-placeholderForeground);
+    }
   </style>
 </head>
 <body>
@@ -511,6 +576,17 @@ export class AnnotationPanel {
 
   <div class="content">
     ${annotationGroups}
+  </div>
+
+  <div class="supplementary-section" id="supplementary-section">
+    <div class="supplementary-resize-handle" id="resize-handle"></div>
+    <div class="supplementary-header">补充信息</div>
+    <textarea
+      class="supplementary-input"
+      placeholder="输入需要补充的 prompt 信息..."
+      oninput="onSupplementaryChange(this.value)"
+      onkeydown="onSupplementaryKeydown(event)"
+    >${this.escapeHtml(supplementaryInfo)}</textarea>
   </div>
 
   <script>
@@ -605,6 +681,22 @@ export class AnnotationPanel {
       vscode.postMessage({ command: 'clearAll' });
     }
 
+    let supplementaryTimeout;
+    function onSupplementaryChange(value) {
+      saveDraftState();
+      clearTimeout(supplementaryTimeout);
+      supplementaryTimeout = setTimeout(() => {
+        vscode.postMessage({ command: 'updateSupplementaryInfo', supplementaryInfo: value });
+      }, 500);
+    }
+
+    function onSupplementaryKeydown(event) {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault();
+        event.target.blur();
+      }
+    }
+
     function saveDraftState() {
       const drafts = {};
       document.querySelectorAll('.note-input').forEach(el => {
@@ -614,6 +706,10 @@ export class AnnotationPanel {
           drafts[id] = el.value;
         }
       });
+      const supplementaryInput = document.querySelector('.supplementary-input');
+      if (supplementaryInput) {
+        drafts['__supplementary__'] = supplementaryInput.value;
+      }
       vscode.setState({ drafts });
     }
 
@@ -621,6 +717,13 @@ export class AnnotationPanel {
       const state = vscode.getState();
       if (!state || !state.drafts) return;
       Object.entries(state.drafts).forEach(([id, value]) => {
+        if (id === '__supplementary__') {
+          const supplementaryInput = document.querySelector('.supplementary-input');
+          if (supplementaryInput) {
+            supplementaryInput.value = value;
+          }
+          return;
+        }
         const textarea = document.querySelector('.note-input[data-id="' + id + '"]');
         if (textarea) {
           textarea.value = value;
@@ -653,6 +756,48 @@ export class AnnotationPanel {
         if (actions) actions.classList.remove('hidden');
       }
     });
+
+    // Resize handle logic
+    (function initResize() {
+      const handle = document.getElementById('resize-handle');
+      const section = document.getElementById('supplementary-section');
+      if (!handle || !section) return;
+
+      let isResizing = false;
+      let startY = 0;
+      let startHeight = 0;
+
+      handle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startY = e.clientY;
+        startHeight = section.offsetHeight;
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const deltaY = startY - e.clientY;
+        const newHeight = Math.max(100, Math.min(600, startHeight + deltaY));
+        section.style.height = newHeight + 'px';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (isResizing) {
+          isResizing = false;
+          document.body.style.userSelect = '';
+          const state = vscode.getState() || {};
+          state.supplementaryHeight = section.offsetHeight;
+          vscode.setState(state);
+        }
+      });
+
+      // Restore saved height
+      const state = vscode.getState();
+      if (state && state.supplementaryHeight) {
+        section.style.height = state.supplementaryHeight + 'px';
+      }
+    })();
 
     document.querySelectorAll('.note-input').forEach(el => {
       el.style.height = 'auto';

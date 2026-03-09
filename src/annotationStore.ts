@@ -16,6 +16,7 @@ export interface Annotation {
 
 export class AnnotationStore {
   private annotations: Annotation[] = [];
+  private supplementaryInfo: string = '';
   private storageFile: string;
   private _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
@@ -45,17 +46,29 @@ export class AnnotationStore {
     try {
       if (fs.existsSync(this.storageFile)) {
         const raw = fs.readFileSync(this.storageFile, 'utf-8');
-        this.annotations = JSON.parse(raw) as Annotation[];
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+          this.annotations = data as Annotation[];
+          this.supplementaryInfo = '';
+        } else {
+          this.annotations = data.annotations || [];
+          this.supplementaryInfo = data.supplementaryInfo || '';
+        }
       }
     } catch {
       try { fs.copyFileSync(this.storageFile, this.storageFile + '.bak'); } catch {}
       this.annotations = [];
+      this.supplementaryInfo = '';
     }
   }
 
   private save(): void {
     try {
-      fs.writeFileSync(this.storageFile, JSON.stringify(this.annotations, null, 2), 'utf-8');
+      const data = {
+        annotations: this.annotations,
+        supplementaryInfo: this.supplementaryInfo
+      };
+      fs.writeFileSync(this.storageFile, JSON.stringify(data, null, 2), 'utf-8');
     } catch (err) {
       vscode.window.showErrorMessage(`Code Annotator: failed to save annotations — ${err}`);
     }
@@ -89,6 +102,12 @@ export class AnnotationStore {
     return true;
   }
 
+  updateSupplementaryInfo(info: string, silent = false): void {
+    this.supplementaryInfo = info;
+    this.save();
+    if (!silent) this._onDidChange.fire();
+  }
+
   remove(id: string): boolean {
     const before = this.annotations.length;
     this.annotations = this.annotations.filter(a => a.id !== id);
@@ -100,45 +119,60 @@ export class AnnotationStore {
 
   clearAll(): void {
     this.annotations = [];
+    this.supplementaryInfo = '';
     this.save();
     this._onDidChange.fire();
   }
 
-  toMarkdown(): string {
-    if (this.annotations.length === 0) return '> No annotations yet.';
+  getSupplementaryInfo(): string {
+    return this.supplementaryInfo;
+  }
 
-    const byFile = new Map<string, Annotation[]>();
-    for (const a of this.annotations) {
-      if (!byFile.has(a.filePath)) byFile.set(a.filePath, []);
-      byFile.get(a.filePath)!.push(a);
+  toMarkdown(): string {
+    if (this.annotations.length === 0 && !this.supplementaryInfo.trim()) {
+      return '> No annotations yet.';
     }
 
     const sections: string[] = ['# Code Annotations\n'];
 
-    for (const [, items] of byFile) {
-      const sorted = [...items].sort((a, b) => a.startLine - b.startLine);
-      const filePath = sorted[0].filePath;
-      const fileName = sorted[0].fileName;
-      sections.push(`## 📄 ${filePath}\n`);
-
-      for (const a of sorted) {
-        const lineRef = a.startLine === a.endLine
-          ? `L${a.startLine}`
-          : `L${a.startLine}–${a.endLine}`;
-        sections.push(`### ${lineRef}`);
-
-        if (a.selectedText.trim()) {
-          const ext = path.extname(a.fileName).slice(1) || '';
-          sections.push(`\`\`\`${ext}`);
-          sections.push(a.selectedText.trimEnd());
-          sections.push('```');
-        }
-
-        sections.push(`**批注**: ${a.note}`);
-        sections.push('');
-        sections.push('---');
-        sections.push('');
+    if (this.annotations.length > 0) {
+      const byFile = new Map<string, Annotation[]>();
+      for (const a of this.annotations) {
+        if (!byFile.has(a.filePath)) byFile.set(a.filePath, []);
+        byFile.get(a.filePath)!.push(a);
       }
+
+      for (const [, items] of byFile) {
+        const sorted = [...items].sort((a, b) => a.startLine - b.startLine);
+        const filePath = sorted[0].filePath;
+        const fileName = sorted[0].fileName;
+        sections.push(`## 📄 ${filePath}\n`);
+
+        for (const a of sorted) {
+          const lineRef = a.startLine === a.endLine
+            ? `L${a.startLine}`
+            : `L${a.startLine}–${a.endLine}`;
+          sections.push(`### ${lineRef}`);
+
+          if (a.selectedText.trim()) {
+            const ext = path.extname(a.fileName).slice(1) || '';
+            sections.push(`\`\`\`${ext}`);
+            sections.push(a.selectedText.trimEnd());
+            sections.push('```');
+          }
+
+          sections.push(`**批注**: ${a.note}`);
+          sections.push('');
+          sections.push('---');
+          sections.push('');
+        }
+      }
+    }
+
+    if (this.supplementaryInfo.trim()) {
+      sections.push('## 补充\n');
+      sections.push(this.supplementaryInfo.trim());
+      sections.push('');
     }
 
     return sections.join('\n');
