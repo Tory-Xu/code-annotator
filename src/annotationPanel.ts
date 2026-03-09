@@ -146,7 +146,7 @@ export class AnnotationPanel {
           const timestamp = new Date(a.updatedAt).toLocaleString();
 
           return `
-            <details class="annotation-card" data-id="${a.id}" open ontoggle="onCardToggle('${a.id}')">
+            <details class="annotation-card" data-id="${a.id}" ontoggle="onCardToggle('${a.id}')">
               <summary class="card-header" onclick="onHeaderClick(event, '${a.id}', '${this.escapeHtml(filePath)}', ${a.startLine})">
                 <span class="toggle-btn">▼</span>
                 <span class="line-ref">
@@ -708,6 +708,8 @@ export class AnnotationPanel {
 
     function saveDraftState() {
       const drafts = {};
+      const cardStates = {};
+
       document.querySelectorAll('.note-input').forEach(el => {
         const id = el.dataset.id;
         const original = el.dataset.original || '';
@@ -715,34 +717,70 @@ export class AnnotationPanel {
           drafts[id] = el.value;
         }
       });
+
+      document.querySelectorAll('.annotation-card').forEach(el => {
+        const id = el.dataset.id;
+        cardStates[id] = el.hasAttribute('open');
+      });
+
       const supplementaryInput = document.querySelector('.supplementary-input');
       if (supplementaryInput) {
         drafts['__supplementary__'] = supplementaryInput.value;
       }
-      vscode.setState({ drafts });
+
+      const state = vscode.getState() || {};
+      vscode.setState({
+        drafts,
+        cardStates,
+        supplementaryHeight: state.supplementaryHeight
+      });
     }
 
     function restoreDraftState() {
       const state = vscode.getState();
-      if (!state || !state.drafts) return;
-      Object.entries(state.drafts).forEach(([id, value]) => {
-        if (id === '__supplementary__') {
-          const supplementaryInput = document.querySelector('.supplementary-input');
-          if (supplementaryInput) {
-            supplementaryInput.value = value;
+      if (!state) return;
+
+      // Restore drafts
+      if (state.drafts) {
+        Object.entries(state.drafts).forEach(([id, value]) => {
+          if (id === '__supplementary__') {
+            const supplementaryInput = document.querySelector('.supplementary-input');
+            if (supplementaryInput) {
+              supplementaryInput.value = value;
+            }
+            return;
           }
-          return;
-        }
-        const textarea = document.querySelector('.note-input[data-id="' + id + '"]');
-        if (textarea) {
-          textarea.value = value;
-          textarea.style.height = 'auto';
-          textarea.style.height = textarea.scrollHeight + 'px';
-          const actions = document.querySelector('.note-actions[data-id="' + id + '"]');
-          if (actions) actions.classList.remove('hidden');
-        }
+          const textarea = document.querySelector('.note-input[data-id="' + id + '"]');
+          if (textarea) {
+            textarea.value = value;
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+            const actions = document.querySelector('.note-actions[data-id="' + id + '"]');
+            if (actions) actions.classList.remove('hidden');
+          }
+        });
+      }
+
+      // Restore card states
+      if (state.cardStates) {
+        Object.entries(state.cardStates).forEach(([id, isOpen]) => {
+          const card = document.querySelector('.annotation-card[data-id="' + id + '"]');
+          if (card) {
+            if (isOpen) {
+              card.setAttribute('open', '');
+            } else {
+              card.removeAttribute('open');
+            }
+          }
+        });
+      }
+
+      // Clear drafts after restore
+      vscode.setState({
+        drafts: {},
+        cardStates: state.cardStates,
+        supplementaryHeight: state.supplementaryHeight
       });
-      vscode.setState({ drafts: {} });
     }
 
     window.addEventListener('message', event => {
@@ -805,6 +843,17 @@ export class AnnotationPanel {
       const state = vscode.getState();
       if (state && state.supplementaryHeight) {
         section.style.height = state.supplementaryHeight + 'px';
+      }
+    })();
+
+    // Initialize card states - default to open for new cards
+    (function initCardStates() {
+      const state = vscode.getState();
+      if (!state || !state.cardStates) {
+        // First load, open all cards
+        document.querySelectorAll('.annotation-card').forEach(el => {
+          el.setAttribute('open', '');
+        });
       }
     })();
 
