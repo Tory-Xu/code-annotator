@@ -706,6 +706,8 @@ export class AnnotationPanel {
       }
     }
 
+    const SUPPLEMENTARY_KEY = '__supplementary__';
+
     function saveDraftState() {
       const drafts = {};
       const cardStates = {};
@@ -725,14 +727,14 @@ export class AnnotationPanel {
 
       const supplementaryInput = document.querySelector('.supplementary-input');
       if (supplementaryInput) {
-        drafts['__supplementary__'] = supplementaryInput.value;
+        drafts[SUPPLEMENTARY_KEY] = supplementaryInput.value;
       }
 
       const state = vscode.getState() || {};
       vscode.setState({
+        ...state,
         drafts,
-        cardStates,
-        supplementaryHeight: state.supplementaryHeight
+        cardStates
       });
     }
 
@@ -743,7 +745,7 @@ export class AnnotationPanel {
       // Restore drafts
       if (state.drafts) {
         Object.entries(state.drafts).forEach(([id, value]) => {
-          if (id === '__supplementary__') {
+          if (id === SUPPLEMENTARY_KEY) {
             const supplementaryInput = document.querySelector('.supplementary-input');
             if (supplementaryInput) {
               supplementaryInput.value = value;
@@ -761,10 +763,16 @@ export class AnnotationPanel {
         });
       }
 
-      // Restore card states
+      // Restore card states - build a map first to avoid repeated queries
       if (state.cardStates) {
+        const cards = new Map();
+        document.querySelectorAll('.annotation-card').forEach(el => {
+          const id = el.dataset.id;
+          if (id) cards.set(id, el);
+        });
+
         Object.entries(state.cardStates).forEach(([id, isOpen]) => {
-          const card = document.querySelector('.annotation-card[data-id="' + id + '"]');
+          const card = cards.get(id);
           if (card) {
             if (isOpen) {
               card.setAttribute('open', '');
@@ -775,11 +783,11 @@ export class AnnotationPanel {
         });
       }
 
-      // Clear drafts after restore
+      // Clear both drafts and cardStates after restore
       vscode.setState({
+        ...state,
         drafts: {},
-        cardStates: state.cardStates,
-        supplementaryHeight: state.supplementaryHeight
+        cardStates: {}
       });
     }
 
@@ -804,55 +812,53 @@ export class AnnotationPanel {
       }
     });
 
-    // Resize handle logic
-    (function initResize() {
-      const handle = document.getElementById('resize-handle');
-      const section = document.getElementById('supplementary-section');
-      if (!handle || !section) return;
-
-      let isResizing = false;
-      let startY = 0;
-      let startHeight = 0;
-
-      handle.addEventListener('mousedown', (e) => {
-        isResizing = true;
-        startY = e.clientY;
-        startHeight = section.offsetHeight;
-        document.body.style.userSelect = 'none';
-        e.preventDefault();
-      });
-
-      document.addEventListener('mousemove', (e) => {
-        if (!isResizing) return;
-        const deltaY = startY - e.clientY;
-        const newHeight = Math.max(100, Math.min(600, startHeight + deltaY));
-        section.style.height = newHeight + 'px';
-      });
-
-      document.addEventListener('mouseup', () => {
-        if (isResizing) {
-          isResizing = false;
-          document.body.style.userSelect = '';
-          const state = vscode.getState() || {};
-          state.supplementaryHeight = section.offsetHeight;
-          vscode.setState(state);
-        }
-      });
-
-      // Restore saved height
+    // Initialize state once
+    (function init() {
       const state = vscode.getState();
-      if (state && state.supplementaryHeight) {
+
+      // Restore resize height
+      const section = document.getElementById('supplementary-section');
+      if (section && state?.supplementaryHeight) {
         section.style.height = state.supplementaryHeight + 'px';
       }
-    })();
 
-    // Initialize card states - default to open for new cards
-    (function initCardStates() {
-      const state = vscode.getState();
+      // Initialize card states - default to open for new cards
       if (!state || !state.cardStates) {
-        // First load, open all cards
         document.querySelectorAll('.annotation-card').forEach(el => {
           el.setAttribute('open', '');
+        });
+      }
+
+      // Setup resize handle
+      const handle = document.getElementById('resize-handle');
+      if (handle && section) {
+        let isResizing = false;
+        let startY = 0;
+        let startHeight = 0;
+
+        handle.addEventListener('mousedown', (e) => {
+          isResizing = true;
+          startY = e.clientY;
+          startHeight = section.offsetHeight;
+          document.body.style.userSelect = 'none';
+          e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+          if (!isResizing) return;
+          const deltaY = startY - e.clientY;
+          const newHeight = Math.max(100, Math.min(600, startHeight + deltaY));
+          section.style.height = newHeight + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+          if (isResizing) {
+            isResizing = false;
+            document.body.style.userSelect = '';
+            const currentState = vscode.getState() || {};
+            currentState.supplementaryHeight = section.offsetHeight;
+            vscode.setState(currentState);
+          }
         });
       }
     })();
