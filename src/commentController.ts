@@ -93,40 +93,20 @@ export class InlineCommentController {
     }
   }
 
-  private buildStoredComment(annotation: { id: string; note: string }, editing = false): vscode.Comment {
+  private buildStoredComment(annotation: { id: string; note: string }): vscode.Comment {
     return {
       author: { name: '📝' },
       body: new vscode.MarkdownString(this.escapeMarkdown(annotation.note)),
-      mode: editing ? vscode.CommentMode.Editing : vscode.CommentMode.Preview,
-      contextValue: editing
-        ? `annotationEditing:${annotation.id}`
-        : `annotationPreview:${annotation.id}`,
+      mode: vscode.CommentMode.Preview,
+      contextValue: `annotationPreview:${annotation.id}`,
     };
   }
 
-  startEditComment(comment: vscode.Comment, thread: vscode.CommentThread): void {
-    const contextValue = (comment as vscode.Comment & { contextValue?: string }).contextValue ?? '';
+  startEditComment(comment: vscode.Comment): string | undefined {
+    const contextValue = (comment as any).contextValue ?? '';
     const match = contextValue.match(/^annotationPreview:(.+)$/);
-    if (!match) return;
-    const id = match[1];
-
-    const annotation = this.store.getAll().find(a => a.id === id);
-    if (!annotation) return;
-
-    vscode.window.showInputBox({
-      title: `编辑批注 — ${annotation.fileName} L${annotation.startLine}`,
-      value: annotation.note,
-      placeHolder: '输入批注内容…',
-      ignoreFocusOut: true,
-    }).then(newNote => {
-      if (newNote === undefined) return;
-      this.store.update(id, newNote.trim());
-    });
+    return match ? match[1] : undefined;
   }
-
-  saveEditedComment(_comment: vscode.Comment, _thread: vscode.CommentThread): void {}
-
-  cancelEditComment(_comment: vscode.Comment, _thread: vscode.CommentThread): void {}
 
   private syncThreadsFromStore(): void {
     const annotations = this.store.getAll();
@@ -148,7 +128,7 @@ export class InlineCommentController {
           : String(currentBody ?? '');
         const expectedBody = this.escapeMarkdown(annotation.note);
         if (currentNote !== expectedBody) {
-          thread.comments = [this.buildStoredComment(annotation, false)];
+          thread.comments = [this.buildStoredComment(annotation)];
         }
         continue;
       }
@@ -175,7 +155,7 @@ export class InlineCommentController {
     if (!thread) return;
     const annotation = this.store.getAll().find(a => a.id === id);
     if (!annotation) return;
-    thread.comments = [this.buildStoredComment({ ...annotation, note }, false)];
+    thread.comments = [this.buildStoredComment({ ...annotation, note })];
   }
 
   expandAllThreads(): void {
@@ -199,7 +179,7 @@ export class InlineCommentController {
   }
 
   private escapeMarkdown(text: string): string {
-    return text.replace(/([\\`*_{}[\]()#+\-.!])/g, '\\$1');
+    return text.replace(/([\\`*_{}[\]()#+\-.!])/g, '\\$1').replace(/\n/g, '  \n');
   }
 
   dispose(): void {

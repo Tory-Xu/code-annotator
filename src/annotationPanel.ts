@@ -46,6 +46,10 @@ export class AnnotationPanel {
     return AnnotationPanel.instance;
   }
 
+  scrollToAnnotation(id: string): void {
+    this.panel.webview.postMessage({ command: 'scrollToAndEdit', id });
+  }
+
   private async handleMessage(msg: { command: string; id?: string; note?: string; filePath?: string; line?: number }): Promise<void> {
     switch (msg.command) {
       case 'updateNote':
@@ -586,6 +590,20 @@ export class AnnotationPanel {
       const message = event.data;
       if (message.command === 'beforeRefresh') {
         saveDraftState();
+      }
+      if (message.command === 'scrollToAndEdit') {
+        const id = message.id;
+        const card = document.querySelector('.annotation-card[data-id="' + id + '"]');
+        if (!card) return;
+        card.setAttribute('open', '');
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const textarea = card.querySelector('.note-input');
+        if (textarea) {
+          textarea.focus();
+          textarea.select();
+        }
+        const actions = card.querySelector('.note-actions');
+        if (actions) actions.classList.remove('hidden');
       }
     });
 

@@ -33,8 +33,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand(
       'codeAnnotator.editComment',
-      (comment: vscode.Comment, thread: vscode.CommentThread) => {
-        commentCtrl.startEditComment(comment, thread);
+      (comment: vscode.Comment) => {
+        const id = commentCtrl.startEditComment(comment);
+        if (!id) return;
+        const panel = AnnotationPanel.show(store, commentCtrl, context.extensionUri);
+        panel.scrollToAnnotation(id);
       },
     ),
 
