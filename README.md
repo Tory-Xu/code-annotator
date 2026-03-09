@@ -68,15 +68,17 @@ claude-init-plan
 
 ## 输出格式示例
 
-```markdown
+复制后的 Markdown 格式：
+
+```
 # Code Annotations
 
 ## 📄 /path/to/project/src/foo.ts
 
 ### `foo.ts` L42
-```ts
+​```ts
 const result = await fetchData(url)
-```
+​```
 **批注**: 这里没有处理网络超时的情况
 
 ---
