@@ -148,8 +148,8 @@ export class AnnotationPanel {
           return `
             <details class="annotation-card" data-id="${a.id}" open ontoggle="onCardToggle('${a.id}')">
               <summary class="card-header" onclick="onHeaderClick(event, '${a.id}', '${this.escapeHtml(filePath)}', ${a.startLine})">
-                <button class="toggle-btn" onclick="event.stopPropagation(); event.preventDefault(); toggleCard('${a.id}')" title="展开/收起">▼</button>
-                <span class="line-ref" data-clickable="jump">
+                <span class="toggle-btn">▼</span>
+                <span class="line-ref">
                   ${this.escapeHtml(fileName)} · <span class="line-badge">${lineRef}</span>
                 </span>
                 <span class="header-spacer"></span>
@@ -361,10 +361,7 @@ export class AnnotationPanel {
     .card-header::marker { display: none; }
 
     .toggle-btn {
-      background: none;
-      border: none;
       color: var(--vscode-foreground);
-      cursor: pointer;
       padding: 4px 8px;
       font-size: 12px;
       transition: transform 0.2s;
@@ -372,11 +369,6 @@ export class AnnotationPanel {
 
     .annotation-card:not([open]) .toggle-btn {
       transform: rotate(-90deg);
-    }
-
-    .toggle-btn:hover {
-      background: var(--vscode-toolbar-hoverBackground);
-      border-radius: 3px;
     }
 
     .line-ref {
@@ -629,12 +621,7 @@ export class AnnotationPanel {
         return;
       }
 
-      // 点击 toggle-btn 或 delete-btn，已经有 stopPropagation，不处理
-      if (target.closest('.toggle-btn') || target.closest('.delete-btn')) {
-        return;
-      }
-
-      // 点击空白区域（card-header 本身）→ 展开/收起
+      // 其他区域（包括 toggle-btn、spacer、header 本身）→ 展开/收起
       event.preventDefault();
       toggleCard(id);
     }
