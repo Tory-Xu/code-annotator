@@ -44,6 +44,11 @@
         "command": "codeAnnotator.clearAll",
         "title": "Clear All Annotations",
         "category": "Code Annotator"
+      },
+      {
+        "command": "codeAnnotator.installClaudeInitPlan",
+        "title": "Install claude-init-plan Script",
+        "category": "Code Annotator"
       }
     ],
     "menus": {
