@@ -81,3 +81,41 @@ const result = await fetchData(url)
 
 ---
 ```
+
+## 开发与打包
+
+### 本地开发
+
+```bash
+npm install          # 安装依赖
+npm run compile      # 编译 TypeScript
+npm run watch        # 监听模式，开发时使用
+```
+
+在 VSCode 中按 `F5` 启动 Extension Development Host 进行调试。
+
+### 打包安装
+
+1. **安装打包工具**：
+```bash
+npm install -g @vscode/vsce
+```
+
+2. **编译并打包**：
+```bash
+npm run compile
+vsce package
+```
+
+生成 `code-annotator-0.1.0.vsix` 文件。
+
+3. **安装插件**：
+
+命令行方式：
+```bash
+code --install-extension code-annotator-0.1.0.vsix
+```
+
+或在 VSCode 扩展面板（`⌘⇧X`）→ 右上角 `...` → **Install from VSIX...**
+
+> 如果打包时提示缺少 `repository` 字段，可使用 `vsce package --allow-missing-repository` 跳过检查。
