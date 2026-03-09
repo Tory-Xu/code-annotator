@@ -147,12 +147,13 @@ export class AnnotationPanel {
 
           return `
             <details class="annotation-card" data-id="${a.id}" open ontoggle="onCardToggle('${a.id}')">
-              <summary class="card-header">
-                <button class="toggle-btn" onclick="event.preventDefault(); toggleCard('${a.id}')" title="展开/收起">▼</button>
-                <button class="line-ref" onclick="event.preventDefault(); jumpTo('${this.escapeHtml(filePath)}', ${a.startLine})" title="Jump to code">
+              <summary class="card-header" onclick="onHeaderClick(event, '${a.id}', '${this.escapeHtml(filePath)}', ${a.startLine})">
+                <button class="toggle-btn" onclick="event.stopPropagation(); event.preventDefault(); toggleCard('${a.id}')" title="展开/收起">▼</button>
+                <span class="line-ref" data-clickable="jump">
                   ${this.escapeHtml(fileName)} · <span class="line-badge">${lineRef}</span>
-                </button>
-                <button class="delete-btn" onclick="event.preventDefault(); deleteAnnotation('${a.id}')" title="Delete">✕</button>
+                </span>
+                <span class="header-spacer"></span>
+                <button class="delete-btn" onclick="event.stopPropagation(); event.preventDefault(); deleteAnnotation('${a.id}')" title="Delete">✕</button>
               </summary>
               ${selectedTextHtml}
               <div class="note-area" data-id="${a.id}">
@@ -349,6 +350,7 @@ export class AnnotationPanel {
       list-style: none;
       cursor: pointer;
       user-select: none;
+      flex: 1;
     }
 
     .annotation-card:not([open]) .card-header {
@@ -378,21 +380,20 @@ export class AnnotationPanel {
     }
 
     .line-ref {
-      flex: 1;
-      background: none;
-      border: none;
-      cursor: pointer;
       color: var(--vscode-textLink-foreground);
       font-size: 12px;
       font-family: var(--vscode-editor-font-family);
-      text-align: left;
-      padding: 0;
       display: flex;
       align-items: center;
       gap: 4px;
+      cursor: pointer;
     }
 
     .line-ref:hover { text-decoration: underline; }
+
+    .header-spacer {
+      flex: 1;
+    }
 
     .line-badge {
       background: var(--vscode-editorLineNumber-foreground);
@@ -615,6 +616,27 @@ export class AnnotationPanel {
           card.setAttribute('open', '');
         }
       }
+    }
+
+    function onHeaderClick(event, id, filePath, line) {
+      const target = event.target;
+
+      // 点击文件名区域 → 跳转
+      if (target.closest('.line-ref')) {
+        event.preventDefault();
+        event.stopPropagation();
+        jumpTo(filePath, line);
+        return;
+      }
+
+      // 点击 toggle-btn 或 delete-btn，已经有 stopPropagation，不处理
+      if (target.closest('.toggle-btn') || target.closest('.delete-btn')) {
+        return;
+      }
+
+      // 点击空白区域（card-header 本身）→ 展开/收起
+      event.preventDefault();
+      toggleCard(id);
     }
 
     function onCardToggle(id) {
