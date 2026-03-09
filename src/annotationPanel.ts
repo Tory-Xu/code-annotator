@@ -51,7 +51,7 @@ export class AnnotationPanel {
     this.panel.webview.postMessage({ command: 'scrollToAndEdit', id });
   }
 
-  private async handleMessage(msg: { command: string; id?: string; note?: string; filePath?: string; line?: number }): Promise<void> {
+  private async handleMessage(msg: { command: string; id?: string; note?: string; filePath?: string; line?: number; expanded?: boolean }): Promise<void> {
     switch (msg.command) {
       case 'updateNote':
         if (msg.id && msg.note !== undefined) {
@@ -62,6 +62,11 @@ export class AnnotationPanel {
       case 'deleteAnnotation':
         if (msg.id) {
           this.store.remove(msg.id);
+        }
+        break;
+      case 'toggleThread':
+        if (msg.id && msg.expanded !== undefined) {
+          this.commentCtrl.setThreadCollapsibleState(msg.id, msg.expanded);
         }
         break;
       case 'jumpToLine':
@@ -136,8 +141,9 @@ export class AnnotationPanel {
           const timestamp = new Date(a.updatedAt).toLocaleString();
 
           return `
-            <details class="annotation-card" data-id="${a.id}" open>
+            <details class="annotation-card" data-id="${a.id}" open ontoggle="onCardToggle('${a.id}')">
               <summary class="card-header">
+                <button class="toggle-btn" onclick="event.preventDefault(); toggleCard('${a.id}')" title="展开/收起">▼</button>
                 <button class="line-ref" onclick="event.preventDefault(); jumpTo('${this.escapeHtml(filePath)}', ${a.startLine})" title="Jump to code">
                   ${this.escapeHtml(fileName)} · <span class="line-badge">${lineRef}</span>
                 </button>
@@ -347,6 +353,25 @@ export class AnnotationPanel {
     .card-header::-webkit-details-marker { display: none; }
     .card-header::marker { display: none; }
 
+    .toggle-btn {
+      background: none;
+      border: none;
+      color: var(--vscode-foreground);
+      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 12px;
+      transition: transform 0.2s;
+    }
+
+    .annotation-card:not([open]) .toggle-btn {
+      transform: rotate(-90deg);
+    }
+
+    .toggle-btn:hover {
+      background: var(--vscode-toolbar-hoverBackground);
+      border-radius: 3px;
+    }
+
     .line-ref {
       flex: 1;
       background: none;
@@ -503,6 +528,27 @@ export class AnnotationPanel {
 
     function jumpTo(filePath, line) {
       vscode.postMessage({ command: 'jumpToLine', filePath, line });
+    }
+
+    function toggleCard(id) {
+      const card = document.querySelector('.annotation-card[data-id="' + id + '"]');
+      if (card) {
+        if (card.hasAttribute('open')) {
+          card.removeAttribute('open');
+        } else {
+          card.setAttribute('open', '');
+        }
+      }
+    }
+
+    function onCardToggle(id) {
+      const card = document.querySelector('.annotation-card[data-id="' + id + '"]');
+      const isExpanded = card && card.hasAttribute('open');
+      vscode.postMessage({
+        command: 'toggleThread',
+        id: id,
+        expanded: isExpanded
+      });
     }
 
     function onNoteInput(textarea) {

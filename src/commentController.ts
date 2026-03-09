@@ -172,6 +172,14 @@ export class InlineCommentController {
     }
   }
 
+  setThreadCollapsibleState(id: string, expanded: boolean): void {
+    const thread = this.threadMap.get(id);
+    if (!thread) return;
+    thread.collapsibleState = expanded
+      ? vscode.CommentThreadCollapsibleState.Expanded
+      : vscode.CommentThreadCollapsibleState.Collapsed;
+  }
+
   deleteByThread(thread: vscode.CommentThread): void {
     const contextValue = thread.contextValue ?? '';
     const match = contextValue.match(/^annotationId:(.+)$/);
