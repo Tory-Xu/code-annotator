@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { AnnotationStore, Annotation } from './annotationStore';
+import { InlineCommentController } from './commentController';
 
 export class AnnotationPanel {
   private static instance: AnnotationPanel | undefined;
@@ -9,6 +10,7 @@ export class AnnotationPanel {
 
   private constructor(
     private store: AnnotationStore,
+    private commentCtrl: InlineCommentController,
     extensionUri: vscode.Uri,
   ) {
     this.panel = vscode.window.createWebviewPanel(
@@ -35,12 +37,12 @@ export class AnnotationPanel {
     this.refresh();
   }
 
-  static show(store: AnnotationStore, extensionUri: vscode.Uri): AnnotationPanel {
+  static show(store: AnnotationStore, commentCtrl: InlineCommentController, extensionUri: vscode.Uri): AnnotationPanel {
     if (AnnotationPanel.instance) {
       AnnotationPanel.instance.panel.reveal(vscode.ViewColumn.Beside, true);
       return AnnotationPanel.instance;
     }
-    AnnotationPanel.instance = new AnnotationPanel(store, extensionUri);
+    AnnotationPanel.instance = new AnnotationPanel(store, commentCtrl, extensionUri);
     return AnnotationPanel.instance;
   }
 
@@ -81,6 +83,12 @@ export class AnnotationPanel {
           this.store.clearAll();
         }
         break;
+      case 'expandAll':
+        this.commentCtrl.expandAllThreads();
+        break;
+      case 'collapseAll':
+        this.commentCtrl.collapseAllThreads();
+        break;
     }
   }
 
@@ -119,13 +127,13 @@ export class AnnotationPanel {
           const timestamp = new Date(a.updatedAt).toLocaleString();
 
           return `
-            <div class="annotation-card" data-id="${a.id}">
-              <div class="card-header">
-                <button class="line-ref" onclick="jumpTo('${this.escapeHtml(filePath)}', ${a.startLine})" title="Jump to code">
+            <details class="annotation-card" data-id="${a.id}" open>
+              <summary class="card-header">
+                <button class="line-ref" onclick="event.preventDefault(); jumpTo('${this.escapeHtml(filePath)}', ${a.startLine})" title="Jump to code">
                   ${this.escapeHtml(fileName)} · <span class="line-badge">${lineRef}</span>
                 </button>
-                <button class="delete-btn" onclick="deleteAnnotation('${a.id}')" title="Delete">✕</button>
-              </div>
+                <button class="delete-btn" onclick="event.preventDefault(); deleteAnnotation('${a.id}')" title="Delete">✕</button>
+              </summary>
               ${selectedTextHtml}
               <textarea
                 class="note-input"
@@ -137,7 +145,7 @@ export class AnnotationPanel {
               <div class="card-footer">
                 <span class="timestamp">${timestamp}</span>
               </div>
-            </div>`;
+            </details>`;
         }).join('');
 
         annotationGroups += `
@@ -310,7 +318,17 @@ export class AnnotationPanel {
       padding: 7px 10px;
       background: var(--vscode-editorGroupHeader-tabsBackground);
       border-bottom: 1px solid var(--vscode-panel-border);
+      list-style: none;
+      cursor: pointer;
+      user-select: none;
     }
+
+    .annotation-card:not([open]) .card-header {
+      border-bottom: none;
+    }
+
+    .card-header::-webkit-details-marker { display: none; }
+    .card-header::marker { display: none; }
 
     .line-ref {
       flex: 1;
@@ -403,6 +421,8 @@ export class AnnotationPanel {
   <div class="toolbar">
     <span class="toolbar-title">Annotations</span>
     <span class="count-badge">${count}</span>
+    <button class="btn" onclick="expandAll()" title="Expand all">⊞</button>
+    <button class="btn" onclick="collapseAll()" title="Collapse all">⊟</button>
     <button class="btn btn-primary" onclick="copyAll()" title="Copy all as Markdown for Claude">⎘ Copy All</button>
     <button class="btn" onclick="clearAll()" title="Clear all annotations">🗑</button>
   </div>
@@ -413,6 +433,16 @@ export class AnnotationPanel {
 
   <script>
     const vscode = acquireVsCodeApi();
+
+    function expandAll() {
+      document.querySelectorAll('.annotation-card').forEach(el => el.setAttribute('open', ''));
+      vscode.postMessage({ command: 'expandAll' });
+    }
+
+    function collapseAll() {
+      document.querySelectorAll('.annotation-card').forEach(el => el.removeAttribute('open'));
+      vscode.postMessage({ command: 'collapseAll' });
+    }
 
     function jumpTo(filePath, line) {
       vscode.postMessage({ command: 'jumpToLine', filePath, line });

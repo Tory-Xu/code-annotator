@@ -20,7 +20,7 @@ export function activate(context: vscode.ExtensionContext): void {
       'codeAnnotator.replyHandler',
       (reply: vscode.CommentReply) => {
         commentCtrl.commitPendingAnnotation(reply.thread, reply);
-        AnnotationPanel.show(store, context.extensionUri);
+        AnnotationPanel.show(store, commentCtrl, context.extensionUri);
       },
     ),
 
@@ -31,8 +31,29 @@ export function activate(context: vscode.ExtensionContext): void {
       },
     ),
 
+    vscode.commands.registerCommand(
+      'codeAnnotator.editComment',
+      (comment: vscode.Comment, thread: vscode.CommentThread) => {
+        commentCtrl.startEditComment(comment, thread);
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      'codeAnnotator.saveEditedComment',
+      (comment: vscode.Comment, thread: vscode.CommentThread) => {
+        commentCtrl.saveEditedComment(comment, thread);
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      'codeAnnotator.cancelEditComment',
+      (comment: vscode.Comment, thread: vscode.CommentThread) => {
+        commentCtrl.cancelEditComment(comment, thread);
+      },
+    ),
+
     vscode.commands.registerCommand('codeAnnotator.openPanel', () => {
-      AnnotationPanel.show(store, context.extensionUri);
+      AnnotationPanel.show(store, commentCtrl, context.extensionUri);
     }),
 
     vscode.commands.registerCommand('codeAnnotator.copyToClipboard', async () => {

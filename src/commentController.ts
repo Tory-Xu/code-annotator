@@ -93,6 +93,54 @@ export class InlineCommentController {
     }
   }
 
+  private buildStoredComment(annotation: { id: string; note: string }, editing = false): vscode.Comment {
+    return {
+      author: { name: '📝' },
+      body: new vscode.MarkdownString(this.escapeMarkdown(annotation.note)),
+      mode: editing ? vscode.CommentMode.Editing : vscode.CommentMode.Preview,
+      contextValue: editing
+        ? `annotationEditing:${annotation.id}`
+        : `annotationPreview:${annotation.id}`,
+    };
+  }
+
+  startEditComment(comment: vscode.Comment, thread: vscode.CommentThread): void {
+    const contextValue = (comment as vscode.Comment & { contextValue?: string }).contextValue ?? '';
+    const match = contextValue.match(/^annotationPreview:(.+)$/);
+    if (!match) return;
+    const id = match[1];
+
+    const annotation = this.store.getAll().find(a => a.id === id);
+    if (!annotation) return;
+
+    thread.comments = [this.buildStoredComment(annotation, true)];
+  }
+
+  saveEditedComment(comment: vscode.Comment, thread: vscode.CommentThread): void {
+    const contextValue = (comment as vscode.Comment & { contextValue?: string }).contextValue ?? '';
+    const match = contextValue.match(/^annotationEditing:(.+)$/);
+    if (!match) return;
+    const id = match[1];
+
+    const newNote = comment.body instanceof vscode.MarkdownString
+      ? comment.body.value
+      : String(comment.body);
+
+    this.store.update(id, newNote.trim());
+  }
+
+  cancelEditComment(comment: vscode.Comment, thread: vscode.CommentThread): void {
+    const contextValue = (comment as vscode.Comment & { contextValue?: string }).contextValue ?? '';
+    const match = contextValue.match(/^annotationEditing:(.+)$/);
+    if (!match) return;
+    const id = match[1];
+
+    const annotation = this.store.getAll().find(a => a.id === id);
+    if (!annotation) return;
+
+    thread.comments = [this.buildStoredComment(annotation, false)];
+  }
+
   private syncThreadsFromStore(): void {
     const annotations = this.store.getAll();
     const currentIds = new Set(annotations.map(a => a.id));
@@ -114,18 +162,25 @@ export class InlineCommentController {
       );
 
       const thread = this.controller.createCommentThread(uri, range, []);
-      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
+      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
       thread.canReply = false;
       thread.label = annotation.fileName;
       thread.contextValue = `annotationId:${annotation.id}`;
 
-      const comment: vscode.Comment = {
-        author: { name: '📝' },
-        body: new vscode.MarkdownString(this.escapeMarkdown(annotation.note)),
-        mode: vscode.CommentMode.Preview,
-      };
-      thread.comments = [comment];
+      thread.comments = [this.buildStoredComment(annotation)];
       this.threadMap.set(annotation.id, thread);
+    }
+  }
+
+  expandAllThreads(): void {
+    for (const thread of this.threadMap.values()) {
+      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+    }
+  }
+
+  collapseAllThreads(): void {
+    for (const thread of this.threadMap.values()) {
+      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
     }
   }
 
