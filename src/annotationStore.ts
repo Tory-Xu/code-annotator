@@ -125,7 +125,7 @@ export class AnnotationStore {
         const lineRef = a.startLine === a.endLine
           ? `L${a.startLine}`
           : `L${a.startLine}–${a.endLine}`;
-        sections.push(`### \`${fileName}\` ${lineRef}`);
+        sections.push(`### ${lineRef}`);
 
         if (a.selectedText.trim()) {
           const ext = path.extname(a.fileName).slice(1) || '';
