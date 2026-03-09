@@ -28,6 +28,40 @@
 打开面板（`⌘⇧N`）= 进入批注模式，内联批注在编辑器中可见。
 关闭面板（点击 `×` 或 `⌘W`）= 退出批注模式，内联批注隐藏，数据不丢失。
 
+## claude-init-plan
+
+`claude-init-plan` 是一个配套脚本，用于在项目中启用 Claude Code 的 **Plan 模式**：执行后会创建 `.claude/plan/` 目录并将 `plansDirectory` 写入 `.claude/settings.json`，使 Claude Code 将计划文档保存到该目录。
+
+### 安装
+
+在 VSCode 命令面板（`⌘⇧P`）中搜索并运行：
+
+```
+Code Annotator: Install claude-init-plan Script
+```
+
+脚本会被安装到 `~/.local/bin/claude-init-plan`。
+
+> 确保 `~/.local/bin` 已加入 `PATH`，否则在 shell 配置文件（`.zshrc` / `.bashrc`）中添加：
+> ```bash
+> export PATH="$HOME/.local/bin:$PATH"
+> ```
+
+### 使用
+
+在需要启用 Plan 模式的项目根目录执行：
+
+```bash
+claude-init-plan
+```
+
+执行后会创建：
+- `.claude/` 目录
+- `.claude/plan/` 目录
+- `.claude/settings.json`（已有则合并 `plansDirectory` 字段）
+
+之后在该项目中使用 Claude Code 的 Plan 模式，计划文件将自动保存到 `.claude/plan/`。
+
 ## 数据存储
 
 批注保存在工作区的 `.vscode/annotations.json`，提交到 Git 可与团队共享。无工作区时使用 VSCode 全局存储。
