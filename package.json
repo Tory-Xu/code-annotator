@@ -17,6 +17,15 @@
         "category": "Code Annotator"
       },
       {
+        "command": "codeAnnotator.replyHandler",
+        "title": "Save Annotation"
+      },
+      {
+        "command": "codeAnnotator.deleteThread",
+        "title": "Delete Annotation",
+        "icon": "$(trash)"
+      },
+      {
         "command": "codeAnnotator.openPanel",
         "title": "Open Annotations Panel",
         "category": "Code Annotator"
@@ -38,6 +47,20 @@
           "command": "codeAnnotator.addAnnotation",
           "group": "navigation@1",
           "when": "editorHasSelection || editorTextFocus"
+        }
+      ],
+      "comments/commentThread/title": [
+        {
+          "command": "codeAnnotator.deleteThread",
+          "group": "navigation",
+          "when": "commentController == codeAnnotator && commentThread =~ /annotationId/"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "codeAnnotator.replyHandler",
+          "group": "inline",
+          "when": "commentController == codeAnnotator"
         }
       ]
     },

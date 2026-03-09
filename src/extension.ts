@@ -1,14 +1,34 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { AnnotationStore } from './annotationStore';
 import { AnnotationPanel } from './annotationPanel';
+import { InlineCommentController } from './commentController';
 
 export function activate(context: vscode.ExtensionContext): void {
   const store = new AnnotationStore(context);
+  const commentCtrl = new InlineCommentController(store);
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('codeAnnotator.addAnnotation', () =>
-      addAnnotation(store, context.extensionUri),
+    commentCtrl,
+
+    vscode.commands.registerCommand('codeAnnotator.addAnnotation', () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
+      commentCtrl.promptNewAnnotation(editor);
+    }),
+
+    vscode.commands.registerCommand(
+      'codeAnnotator.replyHandler',
+      (reply: vscode.CommentReply) => {
+        commentCtrl.commitPendingAnnotation(reply.thread, reply);
+        AnnotationPanel.show(store, context.extensionUri);
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      'codeAnnotator.deleteThread',
+      (thread: vscode.CommentThread) => {
+        commentCtrl.deleteByThread(thread);
+      },
     ),
 
     vscode.commands.registerCommand('codeAnnotator.openPanel', () => {
@@ -31,34 +51,5 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 }
 
-async function addAnnotation(store: AnnotationStore, extensionUri: vscode.Uri): Promise<void> {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-
-  const selection = editor.selection;
-  const startLine = selection.start.line + 1;
-  const endLine = selection.end.line + 1;
-  const selectedText = editor.document.getText(selection);
-  const filePath = editor.document.uri.fsPath;
-  const fileName = path.basename(filePath);
-
-  const lineRef = startLine === endLine ? `L${startLine}` : `L${startLine}–${endLine}`;
-  const placeholder = selectedText.trim()
-    ? selectedText.split('\n')[0].trim().slice(0, 60)
-    : '';
-
-  const note = await vscode.window.showInputBox({
-    title: `Annotate ${fileName} · ${lineRef}`,
-    prompt: placeholder ? `Selected: "${placeholder}${placeholder.length >= 60 ? '…' : ''}"` : 'No selection — annotating cursor position',
-    placeHolder: 'Write your annotation…',
-    ignoreFocusOut: true,
-  });
-
-  if (note === undefined) return;
-
-  store.add({ filePath, fileName, startLine, endLine, selectedText, note });
-
-  AnnotationPanel.show(store, extensionUri);
-}
-
 export function deactivate(): void {}
+
