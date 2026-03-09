@@ -1,0 +1,87 @@
+{
+  "name": "code-annotator",
+  "displayName": "Code Annotator",
+  "description": "Annotate code selections and aggregate notes for Claude Code workflow",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeAnnotator.addAnnotation",
+        "title": "Add Annotation",
+        "category": "Code Annotator"
+      },
+      {
+        "command": "codeAnnotator.openPanel",
+        "title": "Open Annotations Panel",
+        "category": "Code Annotator"
+      },
+      {
+        "command": "codeAnnotator.copyToClipboard",
+        "title": "Copy All Annotations (Claude Format)",
+        "category": "Code Annotator"
+      },
+      {
+        "command": "codeAnnotator.clearAll",
+        "title": "Clear All Annotations",
+        "category": "Code Annotator"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codeAnnotator.addAnnotation",
+          "group": "navigation@1",
+          "when": "editorHasSelection || editorTextFocus"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "codeAnnotator.addAnnotation",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "codeAnnotator.openPanel",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codeAnnotator",
+          "title": "Code Annotator",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "codeAnnotator": [
+        {
+          "id": "codeAnnotator.emptyView",
+          "name": "Annotations",
+          "when": "false"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}
