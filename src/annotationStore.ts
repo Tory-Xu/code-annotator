@@ -79,13 +79,13 @@ export class AnnotationStore {
     return a;
   }
 
-  update(id: string, note: string): boolean {
+  update(id: string, note: string, silent = false): boolean {
     const idx = this.annotations.findIndex(a => a.id === id);
     if (idx === -1) return false;
     this.annotations[idx].note = note;
     this.annotations[idx].updatedAt = new Date().toISOString();
     this.save();
-    this._onDidChange.fire();
+    if (!silent) this._onDidChange.fire();
     return true;
   }
 

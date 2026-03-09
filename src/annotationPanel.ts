@@ -51,6 +51,7 @@ export class AnnotationPanel {
       case 'updateNote':
         if (msg.id && msg.note !== undefined) {
           this.store.update(msg.id, msg.note);
+          this.commentCtrl.updateThreadNote(msg.id, msg.note);
         }
         break;
       case 'deleteAnnotation':
@@ -93,7 +94,10 @@ export class AnnotationPanel {
   }
 
   refresh(): void {
-    this.panel.webview.html = this.buildHtml(this.store.getAll());
+    this.panel.webview.postMessage({ command: 'beforeRefresh' });
+    setTimeout(() => {
+      this.panel.webview.html = this.buildHtml(this.store.getAll());
+    }, 10);
   }
 
   private buildHtml(annotations: Annotation[]): string {
@@ -135,13 +139,21 @@ export class AnnotationPanel {
                 <button class="delete-btn" onclick="event.preventDefault(); deleteAnnotation('${a.id}')" title="Delete">✕</button>
               </summary>
               ${selectedTextHtml}
-              <textarea
-                class="note-input"
-                data-id="${a.id}"
-                onblur="saveNote('${a.id}', this.value)"
-                oninput="autoResize(this)"
-                placeholder="Write your annotation..."
-              >${this.escapeHtml(a.note)}</textarea>
+              <div class="note-area" data-id="${a.id}">
+                <textarea
+                  class="note-input"
+                  data-id="${a.id}"
+                  data-original="${this.escapeHtml(a.note)}"
+                  oninput="onNoteInput(this)"
+                  onkeydown="onNoteKeydown(event, '${a.id}')"
+                  placeholder="Write your annotation..."
+                >${this.escapeHtml(a.note)}</textarea>
+                <div class="note-actions hidden" data-id="${a.id}">
+                  <button class="btn-save" onclick="commitNote('${a.id}')">✓ 保存</button>
+                  <button class="btn-cancel" onclick="cancelNote('${a.id}')">✕ 取消</button>
+                  <span class="save-hint"><kbd>⌘↵</kbd> 保存</span>
+                </div>
+              </div>
               <div class="card-footer">
                 <span class="timestamp">${timestamp}</span>
               </div>
@@ -406,6 +418,46 @@ export class AnnotationPanel {
 
     .note-input::placeholder { color: var(--vscode-input-placeholderForeground); }
 
+    .note-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px 8px;
+    }
+
+    .note-actions.hidden { display: none; }
+
+    .btn-save {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 3px;
+      padding: 3px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .btn-save:hover { background: var(--vscode-button-hoverBackground); }
+
+    .btn-cancel {
+      background: var(--vscode-button-secondaryBackground, transparent);
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 3px;
+      padding: 3px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .btn-cancel:hover { background: var(--vscode-toolbar-hoverBackground); }
+
+    .save-hint {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      margin-left: auto;
+    }
+
     .card-footer {
       padding: 4px 10px 6px;
       border-top: 1px solid var(--vscode-panel-border);
@@ -448,8 +500,46 @@ export class AnnotationPanel {
       vscode.postMessage({ command: 'jumpToLine', filePath, line });
     }
 
-    function saveNote(id, note) {
+    function onNoteInput(textarea) {
+      const id = textarea.dataset.id;
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+      const actions = document.querySelector('.note-actions[data-id="' + id + '"]');
+      if (actions) actions.classList.remove('hidden');
+    }
+
+    function onNoteKeydown(event, id) {
+      if (event.isComposing || event.keyCode === 229) return;
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const modKey = isMac ? event.metaKey : event.ctrlKey;
+      if (modKey && event.key === 'Enter') {
+        event.preventDefault();
+        commitNote(id);
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelNote(id);
+      }
+    }
+
+    function commitNote(id) {
+      const textarea = document.querySelector('.note-input[data-id="' + id + '"]');
+      if (!textarea) return;
+      const note = textarea.value;
+      textarea.dataset.original = note;
+      const actions = document.querySelector('.note-actions[data-id="' + id + '"]');
+      if (actions) actions.classList.add('hidden');
       vscode.postMessage({ command: 'updateNote', id, note });
+    }
+
+    function cancelNote(id) {
+      const textarea = document.querySelector('.note-input[data-id="' + id + '"]');
+      if (!textarea) return;
+      textarea.value = textarea.dataset.original || '';
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+      const actions = document.querySelector('.note-actions[data-id="' + id + '"]');
+      if (actions) actions.classList.add('hidden');
     }
 
     function deleteAnnotation(id) {
@@ -464,12 +554,47 @@ export class AnnotationPanel {
       vscode.postMessage({ command: 'clearAll' });
     }
 
-    function autoResize(el) {
-      el.style.height = 'auto';
-      el.style.height = el.scrollHeight + 'px';
+    function saveDraftState() {
+      const drafts = {};
+      document.querySelectorAll('.note-input').forEach(el => {
+        const id = el.dataset.id;
+        const original = el.dataset.original || '';
+        if (el.value !== original) {
+          drafts[id] = el.value;
+        }
+      });
+      vscode.setState({ drafts });
     }
 
-    document.querySelectorAll('.note-input').forEach(el => autoResize(el));
+    function restoreDraftState() {
+      const state = vscode.getState();
+      if (!state || !state.drafts) return;
+      Object.entries(state.drafts).forEach(([id, value]) => {
+        const textarea = document.querySelector('.note-input[data-id="' + id + '"]');
+        if (textarea) {
+          textarea.value = value;
+          textarea.style.height = 'auto';
+          textarea.style.height = textarea.scrollHeight + 'px';
+          const actions = document.querySelector('.note-actions[data-id="' + id + '"]');
+          if (actions) actions.classList.remove('hidden');
+        }
+      });
+      vscode.setState({ drafts: {} });
+    }
+
+    window.addEventListener('message', event => {
+      const message = event.data;
+      if (message.command === 'beforeRefresh') {
+        saveDraftState();
+      }
+    });
+
+    document.querySelectorAll('.note-input').forEach(el => {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    });
+
+    restoreDraftState();
   </script>
 </body>
 </html>`;

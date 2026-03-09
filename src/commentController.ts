@@ -14,7 +14,7 @@ export class InlineCommentController {
     );
     this.controller.options = {
       prompt: '添加批注…',
-      placeHolder: '输入批注内容，点击 Save 保存',
+      placeHolder: '输入批注内容',
     };
     this.controller.commentingRangeProvider = {
       provideCommentingRanges(document: vscode.TextDocument) {
@@ -113,33 +113,20 @@ export class InlineCommentController {
     const annotation = this.store.getAll().find(a => a.id === id);
     if (!annotation) return;
 
-    thread.comments = [this.buildStoredComment(annotation, true)];
+    vscode.window.showInputBox({
+      title: `编辑批注 — ${annotation.fileName} L${annotation.startLine}`,
+      value: annotation.note,
+      placeHolder: '输入批注内容…',
+      ignoreFocusOut: true,
+    }).then(newNote => {
+      if (newNote === undefined) return;
+      this.store.update(id, newNote.trim());
+    });
   }
 
-  saveEditedComment(comment: vscode.Comment, thread: vscode.CommentThread): void {
-    const contextValue = (comment as vscode.Comment & { contextValue?: string }).contextValue ?? '';
-    const match = contextValue.match(/^annotationEditing:(.+)$/);
-    if (!match) return;
-    const id = match[1];
+  saveEditedComment(_comment: vscode.Comment, _thread: vscode.CommentThread): void {}
 
-    const newNote = comment.body instanceof vscode.MarkdownString
-      ? comment.body.value
-      : String(comment.body);
-
-    this.store.update(id, newNote.trim());
-  }
-
-  cancelEditComment(comment: vscode.Comment, thread: vscode.CommentThread): void {
-    const contextValue = (comment as vscode.Comment & { contextValue?: string }).contextValue ?? '';
-    const match = contextValue.match(/^annotationEditing:(.+)$/);
-    if (!match) return;
-    const id = match[1];
-
-    const annotation = this.store.getAll().find(a => a.id === id);
-    if (!annotation) return;
-
-    thread.comments = [this.buildStoredComment(annotation, false)];
-  }
+  cancelEditComment(_comment: vscode.Comment, _thread: vscode.CommentThread): void {}
 
   private syncThreadsFromStore(): void {
     const annotations = this.store.getAll();
@@ -153,7 +140,18 @@ export class InlineCommentController {
     }
 
     for (const annotation of annotations) {
-      if (this.threadMap.has(annotation.id)) continue;
+      if (this.threadMap.has(annotation.id)) {
+        const thread = this.threadMap.get(annotation.id)!;
+        const currentBody = thread.comments[0]?.body;
+        const currentNote = currentBody instanceof vscode.MarkdownString
+          ? currentBody.value
+          : String(currentBody ?? '');
+        const expectedBody = this.escapeMarkdown(annotation.note);
+        if (currentNote !== expectedBody) {
+          thread.comments = [this.buildStoredComment(annotation, false)];
+        }
+        continue;
+      }
 
       const uri = vscode.Uri.file(annotation.filePath);
       const range = new vscode.Range(
@@ -170,6 +168,14 @@ export class InlineCommentController {
       thread.comments = [this.buildStoredComment(annotation)];
       this.threadMap.set(annotation.id, thread);
     }
+  }
+
+  updateThreadNote(id: string, note: string): void {
+    const thread = this.threadMap.get(id);
+    if (!thread) return;
+    const annotation = this.store.getAll().find(a => a.id === id);
+    if (!annotation) return;
+    thread.comments = [this.buildStoredComment({ ...annotation, note }, false)];
   }
 
   expandAllThreads(): void {

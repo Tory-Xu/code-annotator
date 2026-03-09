@@ -31,16 +31,6 @@
         "icon": "$(edit)"
       },
       {
-        "command": "codeAnnotator.saveEditedComment",
-        "title": "Save",
-        "icon": "$(check)"
-      },
-      {
-        "command": "codeAnnotator.cancelEditComment",
-        "title": "Cancel",
-        "icon": "$(discard)"
-      },
-      {
         "command": "codeAnnotator.openPanel",
         "title": "Open Annotations Panel",
         "category": "Code Annotator"
@@ -83,16 +73,6 @@
           "command": "codeAnnotator.editComment",
           "group": "inline@1",
           "when": "commentController == codeAnnotator && comment =~ /annotationPreview/"
-        },
-        {
-          "command": "codeAnnotator.saveEditedComment",
-          "group": "inline@1",
-          "when": "commentController == codeAnnotator && comment =~ /annotationEditing/"
-        },
-        {
-          "command": "codeAnnotator.cancelEditComment",
-          "group": "inline@2",
-          "when": "commentController == codeAnnotator && comment =~ /annotationEditing/"
         }
       ]
     },
