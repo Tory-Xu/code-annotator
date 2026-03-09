@@ -1,0 +1,7 @@
+.vscode/**
+!.vscode/launch.json
+node_modules/**
+src/**
+tsconfig.json
+.vscodeignore
+*.map
