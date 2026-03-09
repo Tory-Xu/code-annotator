@@ -6,6 +6,7 @@ export class InlineCommentController {
   private controller: vscode.CommentController;
   private threadMap = new Map<string, vscode.CommentThread>();
   private pendingThread: vscode.CommentThread | undefined;
+  private visible = true;
 
   constructor(private store: AnnotationStore) {
     this.controller = vscode.comments.createCommentController(
@@ -109,6 +110,7 @@ export class InlineCommentController {
   }
 
   private syncThreadsFromStore(): void {
+    if (!this.visible) return;
     const annotations = this.store.getAll();
     const currentIds = new Set(annotations.map(a => a.id));
 
@@ -180,6 +182,17 @@ export class InlineCommentController {
 
   private escapeMarkdown(text: string): string {
     return text.replace(/([\\`*_{}[\]()#+\-.!])/g, '\\$1').replace(/\n/g, '  \n');
+  }
+
+  hideThreads(): void {
+    for (const thread of this.threadMap.values()) thread.dispose();
+    this.threadMap.clear();
+    this.visible = false;
+  }
+
+  showThreads(): void {
+    this.visible = true;
+    this.syncThreadsFromStore();
   }
 
   dispose(): void {

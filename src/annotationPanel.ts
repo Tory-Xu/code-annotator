@@ -34,6 +34,7 @@ export class AnnotationPanel {
 
     this.store.onDidChange(() => this.refresh(), null, this.disposables);
 
+    commentCtrl.showThreads();
     this.refresh();
   }
 
@@ -628,6 +629,7 @@ export class AnnotationPanel {
   }
 
   dispose(): void {
+    this.commentCtrl.hideThreads();
     AnnotationPanel.instance = undefined;
     this.panel.dispose();
     for (const d of this.disposables) d.dispose();
