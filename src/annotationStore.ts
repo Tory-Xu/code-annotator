@@ -117,8 +117,9 @@ export class AnnotationStore {
 
     for (const [, items] of byFile) {
       const sorted = [...items].sort((a, b) => a.startLine - b.startLine);
+      const filePath = sorted[0].filePath;
       const fileName = sorted[0].fileName;
-      sections.push(`## 📄 ${fileName}\n`);
+      sections.push(`## 📄 ${filePath}\n`);
 
       for (const a of sorted) {
         const lineRef = a.startLine === a.endLine
